@@ -25,4 +25,4 @@ class LeaveRequest(db.Model):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    leave_id: Mapped[int] = mapped_column(ForeignKey("leave_types.id"))
+    leave_type_id: Mapped[int] = mapped_column(ForeignKey("leave_types.id"))
