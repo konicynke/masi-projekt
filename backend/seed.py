@@ -1,9 +1,11 @@
 from werkzeug.security import generate_password_hash
+from datetime import date
 from app import create_app
 from app.extension import db
 from app.model.user import User, UserRole
 from app.model.leave_type import LeaveType
 from app.model.leave_balance import LeaveBalance
+from app.model.leave_request import LeaveRequest, LeaveRequestStatus
 
 app = create_app()
 
@@ -63,6 +65,17 @@ def seed_data():
         )
 
         db.session.add(vacation_leave_balance)
+        db.session.commit()
+
+        sample_request = LeaveRequest(
+            user_id=employee.id,
+            leave_type_id=vacation_leave.id,
+            start_date=date(2026, 7, 10),
+            end_date=date(2026, 7, 14),
+            status=LeaveRequestStatus.PENDING,
+            request_reason="Vacation leave"
+        )
+        db.session.add(sample_request)
         db.session.commit()
 
         print("Seeding completed.")

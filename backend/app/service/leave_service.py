@@ -1,9 +1,10 @@
 from datetime import date
+
 from app.extension import db
 from app.model.leave_request import LeaveRequest, LeaveRequestStatus
 from app.model.leave_balance import LeaveBalance
 from app.model.user import User
-
+from app.service.notification_service import send_status_update_email
 
 def create_leave_request(
     user_id: int,
@@ -44,9 +45,7 @@ def create_leave_request(
     available_days = balance.total_days - balance.used_days
 
     if requested_days > available_days:
-        raise ValueError(
-            f"Not enough available days. Requested: {requested_days}, available: {available_days}."
-        )
+        raise ValueError(f"Not enough available days. Requested: {requested_days}, available: {available_days}.")
 
     new_request = LeaveRequest(
         user_id=user_id,
@@ -108,6 +107,13 @@ def update_leave_status(
         balance.used_days += days
 
     db.session.commit()
+    
+    send_status_update_email(
+        user=user,
+        status=new_status.value,
+        start_date=request.start_date.isoformat(),
+        end_date=request.end_date.isoformat()
+    )
 
     return request
 
@@ -139,5 +145,13 @@ def cancel_leave_request(request_id: int, user_id: int) -> LeaveRequest:
     request.status = LeaveRequestStatus.CANCELLED
 
     db.session.commit()
+
+    user = db.session.query(User).get(request.user_id)
+    send_status_update_email(
+        user=user,
+        status=LeaveRequestStatus.CANCELLED.value,
+        start_date=request.start_date.isoformat(),
+        end_date=request.end_date.isoformat()
+    )
 
     return request
