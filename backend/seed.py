@@ -41,7 +41,15 @@ def seed_data():
             role=UserRole.MANAGER
         )
 
-        db.session.add_all([admin, manager])
+        hr_user = User(
+            email="hr@example.com",
+            password_hash=generate_password_hash("password"),
+            first_name="Katarzyna",
+            last_name="Zielińska",
+            role=UserRole.HR
+        )
+
+        db.session.add_all([admin, manager, hr_user])
         db.session.commit()
 
         employee = User(
