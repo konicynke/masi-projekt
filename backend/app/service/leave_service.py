@@ -3,8 +3,10 @@ from datetime import date
 from app.extension import db
 from app.model.leave_request import LeaveRequest, LeaveRequestStatus
 from app.model.leave_balance import LeaveBalance
+from app.model.leave_type import LeaveType
 from app.model.user import User
 from app.service.notification_service import send_status_update_email
+
 
 def create_leave_request(
     user_id: int,
@@ -66,10 +68,48 @@ def get_user_leaves(user_id: int) -> list[LeaveRequest]:
     return db.session.query(LeaveRequest).filter_by(user_id=user_id).all()
 
 
-def get_team_leaves(manager_id: int) -> list[LeaveRequest]:
-    return db.session.query(LeaveRequest).join(User).filter(
+def get_user_balance(user_id: int) -> list[dict]:
+    current_year = date.today().year
+    balances = db.session.query(LeaveBalance, LeaveType).join(
+        LeaveType, LeaveBalance.leave_type_id == LeaveType.id
+    ).filter(
+        LeaveBalance.user_id == user_id,
+        LeaveBalance.year == current_year
+    ).all()
+
+    return [
+        {
+            "leave_type_id": b.leave_type_id,
+            "leave_type_name": lt.name,
+            "total_days": b.total_days,
+            "used_days": b.used_days,
+            "remaining_days": b.total_days - b.used_days,
+        }
+        for b, lt in balances
+    ]
+
+
+def get_team_leaves(manager_id: int) -> list[dict]:
+    results = db.session.query(LeaveRequest, User).join(
+        User, LeaveRequest.user_id == User.id
+    ).filter(
         User.manager_id == manager_id
     ).all()
+
+    return [
+        {
+            "id": req.id,
+            "user_id": req.user_id,
+            "user_name": f"{user.first_name} {user.last_name}",
+            "start": req.start_date.isoformat(),
+            "end": req.end_date.isoformat(),
+            "status": req.status.value,
+            "reason": req.request_reason,
+            "comment": req.manager_comment,
+            "leave_type_id": req.leave_type_id,
+        }
+        for req, user in results
+    ]
 
 
 def update_leave_status(
@@ -107,7 +147,7 @@ def update_leave_status(
         balance.used_days += days
 
     db.session.commit()
-    
+
     send_status_update_email(
         user=user,
         status=new_status.value,
@@ -116,6 +156,63 @@ def update_leave_status(
     )
 
     return request
+
+
+def edit_leave_request(
+    request_id: int,
+    user_id: int,
+    start_date: date,
+    end_date: date,
+    leave_type_id: int,
+    reason: str | None = None,
+) -> LeaveRequest:
+
+    leave_req = db.session.query(LeaveRequest).get(request_id)
+
+    if not leave_req or leave_req.user_id != user_id:
+        raise ValueError("Leave request not found or access denied.")
+
+    if leave_req.status != LeaveRequestStatus.PENDING:
+        raise ValueError("Only PENDING requests can be edited.")
+
+    if start_date > end_date:
+        raise ValueError("Start date cannot be later than end date.")
+
+    overlapping = db.session.query(LeaveRequest).filter(
+        LeaveRequest.user_id == user_id,
+        LeaveRequest.id != request_id,
+        LeaveRequest.status.in_([LeaveRequestStatus.PENDING, LeaveRequestStatus.APPROVED]),
+        LeaveRequest.start_date <= end_date,
+        LeaveRequest.end_date >= start_date,
+    ).first()
+
+    if overlapping:
+        raise ValueError("You already have an active leave request during this period.")
+
+    requested_days = (end_date - start_date).days + 1
+    balance = db.session.query(LeaveBalance).filter_by(
+        user_id=user_id,
+        leave_type_id=leave_type_id,
+        year=start_date.year,
+    ).first()
+
+    if not balance:
+        raise ValueError("No leave balance defined for this leave type in the selected year.")
+
+    if requested_days > balance.total_days - balance.used_days:
+        raise ValueError(
+            f"Not enough available days. Requested: {requested_days}, "
+            f"available: {balance.total_days - balance.used_days}."
+        )
+
+    leave_req.start_date = start_date
+    leave_req.end_date = end_date
+    leave_req.leave_type_id = leave_type_id
+    if reason is not None:
+        leave_req.request_reason = reason
+    db.session.commit()
+
+    return leave_req
 
 
 def cancel_leave_request(request_id: int, user_id: int) -> LeaveRequest:

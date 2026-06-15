@@ -32,6 +32,7 @@ def create_app():
     
     with app.app_context():
         from .model.user import User
+        from .model.department import Department
         from .model.leave_type import LeaveType
         from .model.leave_balance import LeaveBalance
         from .model.leave_request import LeaveRequest

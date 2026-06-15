@@ -24,3 +24,5 @@ class User(db.Model):
 
     manager_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     subordinates: Mapped[list["User"]] = relationship("User", backref="manager", remote_side=[id])
+
+    department_id: Mapped[int | None] = mapped_column(ForeignKey("departments.id"))

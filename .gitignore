@@ -1,4 +1,6 @@
 __pycache__/
 backend/venv/
+backend/.venv-linux/
 backend/*.pyc
 backend/.env
+backend/instance/

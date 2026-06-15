@@ -11,8 +11,13 @@ const LoginPage = () => {
             const response = await api.post('/auth/login', { email, password });
             localStorage.setItem('token', response.data.token);
             localStorage.setItem('user', JSON.stringify(response.data.user));
-            if (response.data.user.role === 'MANAGER') {
+            const role = response.data.user.role;
+            if (role === 'ADMIN') {
+                window.location.href = '/admin';
+            } else if (role === 'MANAGER') {
                 window.location.href = '/manager';
+            } else if (role === 'HR') {
+                window.location.href = '/hr';
             } else {
                 window.location.href = '/dashboard';
             }

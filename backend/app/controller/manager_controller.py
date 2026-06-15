@@ -13,18 +13,7 @@ manager_bp = Blueprint('manager', __name__)
 def list_team_leaves():
     current_manager_id = get_jwt_identity()
     leaves = get_team_leaves(int(current_manager_id))
-
-    return jsonify([
-        {
-            "id": leave.id,
-            "user_id": leave.user_id,
-            "start": leave.start_date.isoformat(),
-            "end": leave.end_date.isoformat(),
-            "status": leave.status.value,
-            "reason": leave.request_reason
-        }
-        for leave in leaves
-    ]), 200
+    return jsonify(leaves), 200
 
 
 @manager_bp.route('/leaves/<int:request_id>/status', methods=['PATCH'])
@@ -48,6 +37,9 @@ def change_leave_status(request_id):
             }), 400
 
         comment = data.get('comment')
+
+        if new_status_enum == LeaveRequestStatus.REJECTED and not comment:
+            return jsonify({"msg": "Uzasadnienie jest wymagane przy odrzuceniu wniosku."}), 400
 
         updated_req = update_leave_status(
             request_id=request_id,
